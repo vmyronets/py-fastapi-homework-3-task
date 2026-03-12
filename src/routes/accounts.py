@@ -1,11 +1,10 @@
 from datetime import datetime, timezone, timedelta
-from typing import cast
+from typing import cast, Annotated
 
 from fastapi import APIRouter, Depends, status, HTTPException
 from sqlalchemy import select, delete
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy.orm import Session, joinedload
 
 from config import get_jwt_auth_manager, get_settings, BaseAppSettings
 from database import (
@@ -33,13 +32,16 @@ from schemas.accounts import (
 )
 from security.interfaces import JWTAuthManagerInterface
 
+
+SessionDep = Annotated[AsyncSession, Depends(get_db)]
+
 router = APIRouter()
 
 
 @router.post("/register/", response_model=UserRegistrationResponseSchema, status_code=status.HTTP_201_CREATED)
 async def register_user(
         user_data: UserRegistrationRequestSchema,
-        db: Session = Depends(get_db)
+        db: SessionDep
 ):
     try:
         # Check if email exists
@@ -90,7 +92,7 @@ async def register_user(
 @router.post("/activate/", response_model=MessageResponseSchema, status_code=status.HTTP_200_OK)
 async def activate_account(
         activation_data: UserActivationRequestSchema,
-        db: Session = Depends(get_db)
+        db: SessionDep
 ):
     # Find user
     stmt = select(UserModel).where(UserModel.email == activation_data.email)
@@ -142,7 +144,7 @@ async def activate_account(
 @router.post("/password-reset/request/", response_model=MessageResponseSchema, status_code=status.HTTP_200_OK)
 async def request_password_reset(
         reset_data: PasswordResetRequestSchema,
-        db: Session = Depends(get_db)
+        db: SessionDep
 ):
     # Success message (always returned)
     success_message = {"message": "If you are registered, you will receive an email with instructions."}
@@ -168,7 +170,7 @@ async def request_password_reset(
 @router.post("/reset-password/complete/", response_model=MessageResponseSchema, status_code=status.HTTP_200_OK)
 async def reset_password_complete(
         reset_data: PasswordResetCompleteRequestSchema,
-        db: Session = Depends(get_db)
+        db: SessionDep
 ):
     try:
         # Find user
@@ -227,7 +229,7 @@ async def reset_password_complete(
 @router.post("/login/", response_model=UserLoginResponseSchema, status_code=status.HTTP_201_CREATED)
 async def login_user(
         login_data: UserLoginRequestSchema,
-        db: Session = Depends(get_db),
+        db: SessionDep,
         jwt_manager: JWTAuthManagerInterface = Depends(get_jwt_auth_manager),
         settings: BaseAppSettings = Depends(get_settings)
 ):
@@ -281,7 +283,7 @@ async def login_user(
 @router.post("/refresh/", response_model=TokenRefreshResponseSchema, status_code=status.HTTP_200_OK)
 async def refresh_access_token(
         refresh_data: TokenRefreshRequestSchema,
-        db: Session = Depends(get_db),
+        db: SessionDep,
         jwt_manager: JWTAuthManagerInterface = Depends(get_jwt_auth_manager)
 ):
     try:
